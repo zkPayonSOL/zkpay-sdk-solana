@@ -1,0 +1,14 @@
+node_modules/
+dist/
+coverage/
+.cache/
+.artifacts/
+*.tgz
+.env
+.env.*
+!.env.example
+*.sk
+*-keypair.json
+*.pem
+.DS_Store
+test-results/
