@@ -116,7 +116,7 @@ test('an explicit public Mainnet RPC uses the caller fetch channel and ignores A
     return new Response(JSON.stringify({ jsonrpc: '2.0', id: body.id, result }), { headers: { 'content-type': 'application/json' } })
   }
   const client = await ZkPayClient.create({
-    network: 'mainnet-beta', wallet, rpcUrl: explicitPublicRpc, fetch: fetcher, hasher: fakeHasher, prover: noProof,
+    network: 'mainnet-beta', wallet, rpcUrl: ` ${explicitPublicRpc} `, fetch: fetcher, hasher: fakeHasher, prover: noProof,
   })
   try {
     assert.equal(requested.length, 0, 'creating a client must not connect to any RPC or API')

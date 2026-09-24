@@ -183,7 +183,7 @@ export class ZkPayClient {
       ...(options.fetch ? { fetch: options.fetch } : {}), signal: this.#lifetime.signal,
     })
     const fetcher = options.fetch ?? globalThis.fetch
-    this.#connection = options.connection ?? new Connection(options.rpcUrl!, {
+    this.#connection = options.connection ?? new Connection(this.config.rpcUrl!, {
       commitment: 'confirmed',
       disableRetryOnRateLimit: true,
       fetch: (input, init) => fetcher(input, { ...init, credentials: 'omit', redirect: 'error',
