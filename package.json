@@ -19,6 +19,10 @@
     "typecheck": "tsc --noEmit",
     "test": "tsx --test test/**/*.test.ts",
     "check": "npm run typecheck && npm test && npm run build",
+    "artifacts:download": "npm run build && node scripts/download-artifacts.mjs",
+    "test:proof": "tsx --test test/proving/real-proof.test.ts test/proving/roundtrip.test.ts",
+    "test:live-readonly": "ZKPAY_LIVE_READONLY=1 tsx --test test/integration/live-readonly.test.ts",
+    "test:package": "npm run build && node scripts/check-package.mjs",
     "prepack": "npm run build"
   },
   "dependencies": {
@@ -35,6 +39,7 @@
   "devDependencies": {
     "@types/bn.js": "5.2.0",
     "@types/node": "22.20.3",
+    "esbuild": "0.28.2",
     "tsx": "4.23.13",
     "typescript": "5.9.3"
   },
