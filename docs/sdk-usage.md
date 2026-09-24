@@ -1,6 +1,6 @@
 # SDK usage
 
-This SDK supports native SOL on Solana Mainnet Beta only. The examples in this guide import the local build from an application file at the repository root. Run `npm ci && npm run build` first. Node.js 22+ is required.
+This SDK supports native SOL on Solana Mainnet. The examples in this guide import the local build from an application file at the repository root. Run `npm ci && npm run build` first. Node.js 22+ is required.
 
 ## Amounts and fees
 
