@@ -1,6 +1,6 @@
 # SDK usage
 
-This SDK supports native SOL on Solana Mainnet Beta only. The examples in this guide import the local build from an application file at the repository root. Run `npm ci && npm run build` first. Node.js 22+ is required. Version 0.1.0 is unreleased. The repository is currently private for npm publication (`private: true`) and `UNLICENSED`; owner approval of release and licensing remains pending. There is no assumed `npm install @zkpay/sdk-solana` release.
+This SDK supports native SOL on Solana Mainnet Beta only. The examples in this guide import the local build from an application file at the repository root. Run `npm ci && npm run build` first. Node.js 22+ is required.
 
 ## Amounts and fees
 
