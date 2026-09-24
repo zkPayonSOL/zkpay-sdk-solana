@@ -2,7 +2,8 @@ import type { ZkPayClient, PendingPayment, PaymentStatus } from '../src/client.j
 
 /**
  * savedPayment comes from private durable application storage, preferably saved before submission.
- * The client must have the original network, wallet and signing host. This helper never resubmits.
+ * The client must use network: 'mainnet-beta' with the original wallet and signing host.
+ * This helper never resubmits.
  */
 export async function resumeAndCheckPayment(
   client: ZkPayClient,

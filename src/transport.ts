@@ -15,8 +15,8 @@ export interface RequestOptions { signal?: AbortSignal }
 export interface ApiPoolState {
   readonly programId: string
   readonly relayer: string
-  readonly network?: 'devnet' | 'mainnet-beta'
-  readonly genesisHash?: string
+  readonly network: 'mainnet-beta'
+  readonly genesisHash: string
   readonly root: string
   readonly leafCount: number
   readonly chainLeaves: number
@@ -129,6 +129,7 @@ export class HttpApi {
   readonly #timeoutMs: number
   readonly #maxBytes: number
   readonly #base: string
+  #verifiedMainnet = false
   constructor(config: NetworkConfig, options: { fetch?: typeof globalThis.fetch; timeoutMs?: number; maxResponseBytes?: number } = {}) {
     assertNetworkConfig(config)
     this.#base = validateApiUrl(config.apiUrl)
@@ -198,15 +199,28 @@ export class HttpApi {
     }
   }
   async state(options: RequestOptions = {}): Promise<ApiPoolState> {
+    this.#verifiedMainnet = false
+    try {
+      const result = await this.#readState(options)
+      this.#verifiedMainnet = true
+      return result
+    } catch (error) {
+      this.#verifiedMainnet = false
+      throw error
+    }
+  }
+  async #mainnetIdentity(options: RequestOptions): Promise<void> {
+    abort(options.signal)
+    // Raw transport consumers must not bypass the same Mainnet identity check
+    // used by the high-level client, even with a custom API endpoint.
+    if (!this.#verifiedMainnet) await this.state(options)
+  }
+  async #readState(options: RequestOptions): Promise<ApiPoolState> {
     const value = record(await this.#get('state', options.signal))
     const programId = address(value.programId), relayer = address(value.relayer)
     if (programId !== this.config.programId || relayer !== this.config.relayer) throw new HttpApiError('The API returned a different pool identity.')
-    if (this.config.network === 'mainnet-beta' &&
-        (value.network !== this.config.network || value.genesisHash !== this.config.genesisHash || value.faucetEnabled !== false)) {
+    if (value.network !== this.config.network || value.genesisHash !== this.config.genesisHash || value.faucetEnabled !== false) {
       throw new HttpApiError('The API did not verify the configured Mainnet identity.')
-    }
-    if (value.network !== undefined && value.network !== this.config.network || value.genesisHash !== undefined && value.genesisHash !== this.config.genesisHash) {
-      throw new HttpApiError('The API returned a different network.')
     }
     const feePolicy: FeePolicy = {
       model: value.feeModel as FeePolicy['model'], basisPoints: integer(value.withdrawFeeBps, 0, 100),
@@ -221,12 +235,12 @@ export class HttpApi {
     const shutdownAt = value.shutdownAt === null || value.shutdownAt === undefined ? null : integer(value.shutdownAt, 1, Number.MAX_SAFE_INTEGER)
     return Object.freeze({ programId, relayer, root: decimalField(value.root), leafCount, chainLeaves, indexedLeaves, shutdownAt,
       relayerEnabled: boolean(value.relayerEnabled), faucetEnabled: boolean(value.faucetEnabled), feePolicy: Object.freeze(feePolicy), rpcUrl: value.rpcUrl,
-      ...(value.network === undefined ? {} : { network: this.config.network }),
-      ...(value.genesisHash === undefined ? {} : { genesisHash: this.config.genesisHash }),
+      network: this.config.network, genesisHash: this.config.genesisHash,
     })
   }
   async leaves(from: number, limit = 2000, options: RequestOptions = {}): Promise<{ leaves: LeafRecord[]; total: number }> {
     integer(from, 0, MAX_LEAVES); integer(limit, 1, 5000)
+    await this.#mainnetIdentity(options)
     const value = record(await this.#get(`leaves?from=${from}&limit=${limit}`, options.signal))
     const total = integer(value.total, from, MAX_LEAVES)
     if (!Array.isArray(value.leaves) || value.leaves.length > limit || from + value.leaves.length > total) throw new HttpApiError('Invalid API leaf page size.')
@@ -234,6 +248,7 @@ export class HttpApi {
   }
   async nullifiers(after: number, options: RequestOptions = {}): Promise<{ pdas: string[]; next: number }> {
     integer(after, 0, Number.MAX_SAFE_INTEGER)
+    await this.#mainnetIdentity(options)
     const value = record(await this.#get(`nullifiers?after=${after}`, options.signal))
     const next = integer(value.next, after, Number.MAX_SAFE_INTEGER)
     if (!Array.isArray(value.pdas) || value.pdas.length > 5000 || (value.pdas.length === 0 ? next !== after : next <= after)) throw new HttpApiError('Invalid nullifier page cursor.')
@@ -243,12 +258,14 @@ export class HttpApi {
   }
   async ingest(signature: string, options: RequestOptions = {}): Promise<{ contiguous: number }> {
     validateSignature(signature)
+    await this.#mainnetIdentity(options)
     const value = record(await this.#once('ingest', { signature }, options.signal))
     return { contiguous: integer(value.contiguous, 0, MAX_LEAVES) }
   }
   async relay(body: RelayRequest, options: RequestOptions = {}): Promise<RelayResult> {
     const safeBody = validateRelayRequest(body, this.config)
     abort(options.signal)
+    await this.#mainnetIdentity(options)
     try {
       const value = record(await this.#once('relay', safeBody, options.signal))
       return Object.freeze({ signature: validateSignature(value.signature), confirmed: boolean(value.confirmed) })

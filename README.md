@@ -1,6 +1,6 @@
 # zkPay Solana SDK
 
-TypeScript client for zkPay's native SOL privacy pools. It supports explicit Devnet and Mainnet Beta configuration, wallet-based unlock, local note scanning and Groth16 proving, unsigned deposit preparation, relayed withdrawals, and payment-status recovery.
+TypeScript client for zkPay's native SOL privacy pool on Solana Mainnet Beta only. It supports wallet-based unlock, local note scanning and Groth16 proving, unsigned deposit preparation, relayed withdrawals, and payment-status recovery. Every client requires the explicit `network: 'mainnet-beta'` option; there is no default network.
 
 This repository is a source distribution under development. `package.json` currently sets `private: true` and `license: "UNLICENSED"`; publication and licensing remain owner decisions. These instructions do not assume a published npm package. This SDK has not been independently audited.
 
@@ -40,7 +40,7 @@ import { ZkPayClient, formatSol } from './dist/index.js';
 import type { WalletSigner } from './dist/index.js';
 
 export async function readBalance(wallet: WalletSigner) {
-  const client = await ZkPayClient.create({ network: 'devnet', wallet });
+  const client = await ZkPayClient.create({ network: 'mainnet-beta', wallet });
   try {
     await client.unlock(); // Requests a sensitive, deterministic message signature.
     const balance = await client.getPrivateBalance();
@@ -54,7 +54,7 @@ export async function readBalance(wallet: WalletSigner) {
 }
 ```
 
-This function reads network state and requests an unlock signature; it never submits a transaction. Mainnet is selected only by explicitly passing `network: 'mainnet-beta'`. Preserve the signing host used for the original deposits: another host derives another private account. In a browser, the host must match the current page.
+This function reads Mainnet state and requests an unlock signature; it never submits a transaction. The mandatory `network: 'mainnet-beta'` option makes the real-funds context explicit. Preserve the signing host used for the original deposits: another host derives another private account. In a browser, the host must match the current page.
 
 `verified: true` on a balance means the commitment tree and relevant RPC account checks passed. It does **not** prove that the indexer supplied every authentic encrypted note. A malicious indexer can hide or alter ciphertext and cause a balance to be underreported. Owned-nullifier lookups also expose their association to the selected RPC provider. Read the [security model](SECURITY.md) before integrating.
 
@@ -68,7 +68,7 @@ Preserve the complete intent, including its SDK-generated `authentication` field
 
 All amounts are `bigint` lamports. Withdrawal `lamports` is the **gross private-balance debit**. The default fee is `floor(gross × 20 / 10,000) + 6,000,000` lamports; the recipient receives the remainder. Use the verified current `feePolicy` when displaying a quote. The deployed circuit consumes at most two notes, so `spendableLamports` can be lower than `balanceLamports`. An insufficient or fragmented balance fails; it never silently sends a partial amount.
 
-This release supports native SOL only. It does not provide SPL-token operations, a standalone merge operation, or private internal transfers. Deposits may consolidate up to two existing notes as part of adding SOL.
+This unreleased 0.1.0 SDK supports native SOL on Mainnet only. It does not provide other-cluster integrations, SPL-token operations, a standalone merge operation, or private internal transfers. Deposits may consolidate up to two existing notes as part of adding SOL.
 
 ## Local proving artifacts
 
@@ -81,7 +81,7 @@ ZKPAY_TEST_ARTIFACTS=.artifacts npm run test:proof
 
 The download writes ignored `.artifacts/` files only after all expected sizes and SHA-256 hashes pass. The proof tests use synthetic data for a real proof and a deposit → scan → withdrawal → change roundtrip, including native proof verification and rejection of altered public signals. They do not access a wallet or move funds. Normal tests skip these cases unless `ZKPAY_TEST_ARTIFACTS` is supplied.
 
-`npm run test:package` checks the package file allowlist, credential patterns, Node import behavior, and a browser bundle without broadcasting. `npm run test:live-readonly` explicitly contacts the configured Devnet and Mainnet public endpoints to check genesis, account layouts, and commitment synchronization; its request guard permits only reads and it uses an unfunded synthetic identity. It never submits a transaction or transfers funds. Live checks may fail when endpoints are unavailable or the indexer lags; they are not an independent security audit.
+`npm run test:package` checks the package file allowlist, credential patterns, Node import behavior, and a browser bundle without broadcasting. `npm run test:live-readonly` explicitly contacts the configured Mainnet public endpoints to check genesis, account layouts, and commitment synchronization; its request guard permits only reads and it uses an unfunded synthetic identity. It never submits a transaction or transfers funds. Live checks may fail when endpoints are unavailable or the indexer lags; they are not an independent security audit.
 
 Browser integrations must initialize the Poseidon WASM hasher explicitly. Third-party browser origins cannot assume the official API permits their CORS requests: provide a backend proxy or a compatible self-hosted API and configure `apiUrl`. See [browser setup and artifact handling](docs/sdk-usage.md#browser-integration).
 

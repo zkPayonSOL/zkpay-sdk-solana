@@ -1,13 +1,17 @@
-# SDK implementation plan
+# Mainnet SDK implementation plan
 
 Target repository: `zkPayonSOL/zkpay-sdk-solana`.
 Commit author: `zkPayonSOL <zkPayonSOL@users.noreply.github.com>`.
+
+Current scope: native SOL on Solana Mainnet Beta only, with mandatory explicit
+`network: 'mainnet-beta'` and no automatic network default. Version 0.1.0 remains
+unreleased; this scope change does not publish npm or modify any deployment.
 
 1. Research the current Privacy Cash Solana SDK and record design/provenance
    decisions; scaffold an independently implemented SDK and amount/fee tests.
 2. Port and harden zkPay's own protocol primitives, with byte-level fixtures,
    encrypted-note validation and strict two-input transaction selection.
-3. Add explicit Mainnet/Devnet configuration, deterministic signing compatibility,
+3. Add explicit Mainnet-only configuration, deterministic Mainnet signing compatibility,
    dependency-injected wallets, HTTP/RPC boundaries and pinned proving artifacts.
 4. Implement verified pool synchronization, private-balance queries, unsigned
    deposits and relayed withdrawals with truthful confirmation/error states.

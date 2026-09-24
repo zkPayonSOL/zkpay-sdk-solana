@@ -1,6 +1,6 @@
 # SDK usage
 
-The examples in this guide import the local build from an application file at the repository root. Run `npm ci && npm run build` first. Node.js 22+ is required. The repository is currently private for npm publication (`private: true`) and `UNLICENSED`; owner approval of release and licensing remains pending. There is no assumed `npm install @zkpay/sdk-solana` release.
+This SDK supports native SOL on Solana Mainnet Beta only. The examples in this guide import the local build from an application file at the repository root. Run `npm ci && npm run build` first. Node.js 22+ is required. Version 0.1.0 is unreleased. The repository is currently private for npm publication (`private: true`) and `UNLICENSED`; owner approval of release and licensing remains pending. There is no assumed `npm install @zkpay/sdk-solana` release.
 
 ## Amounts and fees
 
@@ -25,7 +25,7 @@ The client validates the actual pool policy against RPC state. Quote with `quote
 
 `bigint` cannot be passed directly to `JSON.stringify`. Convert presentation fields to strings; `PaymentIntent` already uses JSON-safe decimal strings for amounts.
 
-## Wallets and network selection
+## Wallets and explicit Mainnet configuration
 
 ```ts
 import { ZkPayClient, createKeypairWallet, MemoryPoolStorage } from './dist/index.js';
@@ -36,7 +36,7 @@ import type { WalletSigner } from './dist/index.js';
 
 export async function openClient(wallet: WalletSigner) {
   const client = await ZkPayClient.create({
-    network: 'devnet',
+    network: 'mainnet-beta', // Required: native SOL in a real-funds context.
     wallet,
     signingHost: 'app.zkpay.sh', // Node only: preserve the original deposit's signing host.
     storage: new MemoryPoolStorage(), // Optional, public pool data only.
@@ -58,16 +58,15 @@ interface WalletSigner {
 
 Message signing must be deterministic. The SDK checks signatures and transaction-message integrity, but cannot establish future signing determinism from one signature. A wallet switch requires a new client. Dispose the previous client and preserve any unresolved payment metadata before switching.
 
-`network` is mandatory. Use `'mainnet-beta'` only when intentionally selecting Mainnet; the SDK checks the selected RPC's genesis hash. These are the constants pinned in this release:
+`network` is mandatory and its only supported value is `'mainnet-beta'`. It is not inferred or defaulted: every caller must explicitly acknowledge the Mainnet context, even for reads. The SDK checks the configured RPC's Mainnet genesis hash and rejects other clusters. These are the constants pinned in this release:
 
 | Network | Program | Default API prefix | Default RPC |
 | --- | --- | --- | --- |
-| `devnet` | `79EUG9jBTvcLenrTTYaHBzX6dqM9osaUXhLs3hVf4vBk` | `https://app.zkpay.sh/api` | `https://api.devnet.solana.com` |
 | `mainnet-beta` | `98Bj9K8iPV1JiVqBWXzY4bX4wsrm2x5DgEbiToybm9hx` | `https://app.zkpay.sh/api/mainnet` | `https://app.zkpay.sh/api/mainnet/rpc` |
 
 These constants identify supported deployments; they are not a promise of endpoint availability or a deployment audit. You may override `apiUrl`, `rpcUrl`, or inject a `Connection`, but cannot silently change the program/relayer identity through an API response. Use HTTPS; HTTP API/RPC endpoints are accepted only for explicit localhost development. Embedded URL credentials are rejected. An RPC query-string API token, if used, must not be logged.
 
-The unlock message and spending secret depend on the host and network. Node defaults to `app.zkpay.sh`. Browsers use `location.host` and reject a different `signingHost`. A balance created at one host will not appear when unlocking for another host. Preserve that original context when recovering funds.
+The Mainnet unlock message binds the signing host, account, network, and program. Node defaults the signing host to `app.zkpay.sh`; it does not default the network option. Browsers use `location.host` and reject a different `signingHost`. A balance created at one host will not appear when unlocking for another host. Preserve that original context when recovering Mainnet funds. Other-cluster balances are outside this SDK's scope.
 
 ## Balance synchronization and cache
 
@@ -193,7 +192,7 @@ const prover = createProver({
     verifyingKey: await readFile('.artifacts/verifyingkey2.json'),
   },
 });
-const client = await ZkPayClient.create({ network: 'devnet', wallet, prover });
+const client = await ZkPayClient.create({ network: 'mainnet-beta', wallet, prover });
 ```
 
 The same verified bytes are passed to `snarkjs`; there is no second URL fetch between verification and proving. `createProver` validates supplied bytes at construction. It uses the documented `fullProve` witness/prover single-thread options to avoid lingering worker threads, then checks proof shape, coordinate ranges, and all seven public signals against the witness. It does not implement a custom pairing verifier. The program verifies proofs on chain, and the opt-in real-proof test independently verifies with native `snarkjs` in a child process.
@@ -217,7 +216,7 @@ For an explicit network read check:
 npm run test:live-readonly
 ```
 
-This contacts both configured Devnet and Mainnet public endpoints. It uses an unfunded synthetic identity and a request guard that permits only allowlisted RPC reads and public state/leaf endpoints. It checks cluster identity, deployed account layouts, and bounded Merkle synchronization; it does not unlock a real wallet, broadcast, or transfer funds. Endpoint failures, indexer lag, or smoke-test resource limits can cause a failure without implying a protocol defect. These checks are implementation validation, not an independent audit.
+This contacts the configured Mainnet public endpoints only. It uses an unfunded synthetic identity and a request guard that permits only allowlisted RPC reads and public state/leaf endpoints. It checks cluster identity, deployed account layouts, and bounded Merkle synchronization; it does not unlock a real wallet, broadcast, or transfer funds. Endpoint failures, indexer lag, or smoke-test resource limits can cause a failure without implying a protocol defect. These checks are implementation validation, not an independent audit.
 
 ## Browser integration
 
@@ -235,7 +234,7 @@ export async function createBrowserClient(
 ) {
   const hasher = await createDefaultHasher({ initialize: initializeWasm });
   const prover = createProver({ baseUrl: new URL('/zkpay-artifacts/', location.origin) });
-  return ZkPayClient.create({ network: 'devnet', wallet, apiUrl, rpcUrl, hasher, prover });
+  return ZkPayClient.create({ network: 'mainnet-beta', wallet, apiUrl, rpcUrl, hasher, prover });
 }
 ```
 
@@ -253,4 +252,11 @@ High-level async operations accept `{ signal }`. HTTP requests, synchronization,
 
 Advanced integrations can use `ProtocolAccount`, `MerkleTree`, `PoolSynchronizer`, `HttpApi`, and instruction builders directly. These interfaces do not automatically provide every high-level safety check. `ProtocolAccount.scan` detects/decrypts notes but does not establish on-chain unspent status. `PoolSynchronizer` adds commitment-root/RPC checks. `buildTransactIx` encodes instructions but does not obtain wallet approval or verify a deployment. Avoid substituting a raw scanner result for a verified spendable balance.
 
-This release exposes native SOL flows only. SPL tokens, standalone merge, and private internal transfers are not implemented.
+`HttpApi` also checks the endpoint's Mainnet `/state` identity before its first
+leaf, nullifier, ingest, or relay request. A successful state check is cached for
+that instance; a later failed explicit state check clears it. Custom endpoints
+must return the expected Mainnet network, genesis, program, relayer, and disabled
+faucet identity. This check does not replace the high-level client's RPC checks
+or make a malicious endpoint trustworthy.
+
+This unreleased 0.1.0 SDK exposes native SOL Mainnet flows only. Other clusters, SPL tokens, standalone merge, and private internal transfers are not implemented.

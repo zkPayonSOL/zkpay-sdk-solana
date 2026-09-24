@@ -13,7 +13,7 @@ import { toBytes, fromBytes } from '../../src/protocol/validation.js'
 import { extDataHashField } from '../../src/protocol/ext-data.js'
 import { ARTIFACT_MANIFEST, createDefaultHasher, createProver, verifyArtifacts } from '../../src/proving/index.js'
 import { quoteWithdrawal } from '../../src/fees.js'
-import { DEVNET } from '../../src/networks.js'
+import { MAINNET } from '../../src/networks.js'
 
 const artifactDir = process.env.ZKPAY_TEST_ARTIFACTS
 const decimal = (bytes: readonly number[]): string => fromBytes(Uint8Array.from(bytes)).toString()
@@ -76,8 +76,8 @@ test('offline real deposit → scan → withdrawal → change roundtrip verifies
   const leaves: LeafRecord[] = []
   const recipient = new PublicKey(new Uint8Array(32).fill(41))
   const signer = new PublicKey(new Uint8Array(32).fill(42))
-  const feeRecipient = new PublicKey(DEVNET.relayer)
-  const programId = new PublicKey(DEVNET.programId)
+  const feeRecipient = new PublicKey(MAINNET.relayer)
+  const programId = new PublicKey(MAINNET.programId)
   const depositAmount = 2_500_000_000n
   const withdrawalGross = 1_100_000_000n
   const quote = quoteWithdrawal(withdrawalGross)

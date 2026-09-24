@@ -2,7 +2,7 @@ import assert from 'node:assert/strict'
 import { test } from 'node:test'
 import { Buffer } from 'buffer'
 import { PublicKey, SystemProgram, type AccountInfo, type Connection } from '@solana/web3.js'
-import { DEVNET, MAINNET, type NetworkConfig } from '../../src/networks.js'
+import { MAINNET, type NetworkConfig } from '../../src/networks.js'
 import { DEFAULT_FEE_POLICY } from '../../src/fees.js'
 import { MerkleTree, type LeafRecord, type OwnedNote, type PoseidonHasher } from '../../src/protocol/index.js'
 import { PoolSynchronizer, PoolSyncError, poolStorageNamespace, validateNullifierAccount } from '../../src/pool.js'
@@ -14,7 +14,7 @@ const hasher: PoseidonHasher = inputs => inputs.reduce((sum, value, index) => (s
 const be32 = (value: string) => Buffer.from(BigInt(value).toString(16).padStart(64, '0'), 'hex')
 const accountInfo = (data: Buffer, owner: PublicKey): AccountInfo<Buffer> => ({ data, owner, executable: false, lamports: 1, rentEpoch: 0 })
 
-function fixture(count = 2, config: NetworkConfig = DEVNET) {
+function fixture(count = 2, config: NetworkConfig = MAINNET) {
   const program = new PublicKey(config.programId)
   const bump = (seed: string) => PublicKey.findProgramAddressSync([Buffer.from(seed)], program)[1]
   const leaves: LeafRecord[] = Array.from({ length: count }, (_, index) => ({ index, commitment: String(index + 10), encryptedOutput: '' }))
@@ -77,31 +77,46 @@ test('validates empty roots and never sends an empty nullifier RPC request', asy
   assert.equal(f.pages.length, 0)
 })
 
-test('both networks require genesis, owner, discriminator, fee layout and valid root history', async () => {
-  for (const config of [DEVNET, MAINNET]) {
-    const f = fixture(2, config)
-    f.setGenesis('wrong-genesis')
-    await assert.rejects(f.sync().sync(f.scanner), /different Solana network/)
-    assert.equal(f.reads.length, 0)
-    for (const mutate of [
-      (v: ReturnType<typeof fixture>) => { v.accounts[0] = null },
-      (v: ReturnType<typeof fixture>) => { v.accounts[0]!.owner = SystemProgram.programId },
-      (v: ReturnType<typeof fixture>) => { v.treeData[0] = v.treeData[0]! ^ 1 },
-      (v: ReturnType<typeof fixture>) => { v.treeData[4130] = v.treeData[4130]! ^ 1 },
-      (v: ReturnType<typeof fixture>) => { v.treeData.writeBigUInt64LE(3n, 40) },
-      (v: ReturnType<typeof fixture>) => { v.globalData.writeUInt16LE(1, 40) },
-      (v: ReturnType<typeof fixture>) => { v.globalData[8] = v.globalData[8]! ^ 1 },
-      (v: ReturnType<typeof fixture>) => { be32(FIELD_SIZE.toString()).copy(v.treeData, 944) },
-    ]) {
-      const invalid = fixture(2, config); mutate(invalid)
-      await assert.rejects(invalid.sync().sync(invalid.scanner), PoolSyncError)
-      assert.equal(invalid.scanned(), 0)
-    }
+test('Mainnet requires its genesis, owner, discriminator, fee layout and valid root history', async () => {
+  const f = fixture()
+  f.setGenesis('EtWTRABZaYq6iMfeYKouRu166VU2xqa1wcaWoxPkrZBG')
+  await assert.rejects(f.sync().sync(f.scanner), /different Solana network/)
+  assert.equal(f.reads.length, 0)
+  for (const mutate of [
+    (v: ReturnType<typeof fixture>) => { v.accounts[0] = null },
+    (v: ReturnType<typeof fixture>) => { v.accounts[0]!.owner = SystemProgram.programId },
+    (v: ReturnType<typeof fixture>) => { v.treeData[0] = v.treeData[0]! ^ 1 },
+    (v: ReturnType<typeof fixture>) => { v.treeData[4130] = v.treeData[4130]! ^ 1 },
+    (v: ReturnType<typeof fixture>) => { v.treeData.writeBigUInt64LE(3n, 40) },
+    (v: ReturnType<typeof fixture>) => { v.globalData.writeUInt16LE(1, 40) },
+    (v: ReturnType<typeof fixture>) => { v.globalData[8] = v.globalData[8]! ^ 1 },
+    (v: ReturnType<typeof fixture>) => { be32(FIELD_SIZE.toString()).copy(v.treeData, 944) },
+  ]) {
+    const invalid = fixture(); mutate(invalid)
+    await assert.rejects(invalid.sync().sync(invalid.scanner), PoolSyncError)
+    assert.equal(invalid.scanned(), 0)
   }
 })
 
-test('chain fee mismatch and indexer lag stop before decrypting or spending', async () => {
-  for (const patch of [{ indexedLeaves: 0 }, { indexedLeaves: 4 }, { root: '2' }, { feePolicy: { ...DEFAULT_FEE_POLICY, basisPoints: 35 } }]) {
+test('unsupported network and wrong fixed pool identity fail before RPC or indexer reads', () => {
+  for (const patch of [
+    { network: 'devnet' }, { walletChain: 'solana:devnet' },
+    { genesisHash: 'EtWTRABZaYq6iMfeYKouRu166VU2xqa1wcaWoxPkrZBG' },
+    { programId: '79EUG9jBTvcLenrTTYaHBzX6dqM9osaUXhLs3hVf4vBk' },
+  ]) {
+    const f = fixture(2, { ...MAINNET, ...patch } as unknown as NetworkConfig)
+    assert.throws(() => f.sync(), /Mainnet/)
+    assert.deepEqual(f.reads, [])
+    assert.deepEqual(f.pages, [])
+  }
+})
+
+test('wrong advertised Mainnet identity, chain fee mismatch and indexer lag stop before decrypting or spending', async () => {
+  for (const patch of [{ indexedLeaves: 0 }, { indexedLeaves: 4 }, { root: '2' },
+    { network: 'devnet' }, { network: undefined }, { faucetEnabled: true },
+    { genesisHash: 'EtWTRABZaYq6iMfeYKouRu166VU2xqa1wcaWoxPkrZBG' }, { genesisHash: undefined },
+    { programId: '79EUG9jBTvcLenrTTYaHBzX6dqM9osaUXhLs3hVf4vBk' },
+    { feePolicy: { ...DEFAULT_FEE_POLICY, basisPoints: 35 } }]) {
     const f = fixture(); Object.assign(f.advertised, patch)
     await assert.rejects(f.sync().sync(f.scanner), PoolSyncError)
     assert.equal(f.scanned(), 0)
@@ -148,21 +163,21 @@ test('an invalid fresh root never reaches scanning or storage save', async () =>
   assert.equal(f.scanned(), 0)
 })
 
-test('cache namespaces isolate network, pool and genesis; only public whitelisted data is saved', async () => {
+test('cache namespaces isolate indexer endpoints; only public whitelisted data is saved', async () => {
   const f = fixture()
+  const otherIndexer = { ...MAINNET, apiUrl: 'https://another-indexer.example/api/mainnet' }
   const writes: PublicPoolCache[] = []
   const storage: PoolStorage = {
-    load: async () => ({ version: 1, namespace: poolStorageNamespace(MAINNET), leaves: f.leaves }),
+    load: async () => ({ version: 1, namespace: poolStorageNamespace(otherIndexer), leaves: f.leaves }),
     remove: async () => {}, save: async (_namespace, value) => { writes.push(value) },
   }
   await f.sync(storage).sync(f.scanner)
   assert.deepEqual(f.pages, [0])
-  assert.equal(writes[0]?.namespace, poolStorageNamespace(DEVNET))
+  assert.equal(writes[0]?.namespace, poolStorageNamespace(MAINNET))
   assert.deepEqual(Object.keys(writes[0]!).sort(), ['leaves', 'namespace', 'version'])
   assert.deepEqual(Object.keys(writes[0]!.leaves[0]!).sort(), ['commitment', 'encryptedOutput', 'index'])
-  assert.notEqual(poolStorageNamespace(DEVNET), poolStorageNamespace(MAINNET))
-  assert.notEqual(poolStorageNamespace(DEVNET), poolStorageNamespace({ ...DEVNET, apiUrl: 'https://another-indexer.example/api' }))
-  assert.equal(poolStorageNamespace(DEVNET), poolStorageNamespace({ ...DEVNET, rpcUrl: 'https://rpc.example/?private-key=not-a-real-key' }))
+  assert.notEqual(poolStorageNamespace(MAINNET), poolStorageNamespace(otherIndexer))
+  assert.equal(poolStorageNamespace(MAINNET), poolStorageNamespace({ ...MAINNET, rpcUrl: 'https://rpc.example/?private-key=not-a-real-key' }))
 })
 
 test('nullifier checks use 100-account chunks and derive total versus two-input spendable balance', async () => {
@@ -185,7 +200,7 @@ test('nullifier RPC failure never returns indexer fallback or a spendable balanc
 })
 
 test('nullifier validator treats prefunded empty system PDAs as unspent and malformed owners as errors', () => {
-  const program = new PublicKey(DEVNET.programId)
+  const program = new PublicKey(MAINNET.programId)
   assert.equal(validateNullifierAccount(null, program), false)
   assert.equal(validateNullifierAccount(accountInfo(Buffer.alloc(0), SystemProgram.programId), program), false)
   assert.equal(validateNullifierAccount(accountInfo(Buffer.from([250, 31, 238, 177, 213, 98, 48, 172, 0]), program), program), true)

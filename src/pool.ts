@@ -269,7 +269,8 @@ export class PoolSynchronizer {
     }
   }
   #checkAdvertisement(chain: Omit<ValidatedPoolState, 'relayerEnabled'>, state: ApiPoolState): void {
-    if (state.programId !== this.#config.programId || state.relayer !== this.#config.relayer ||
+    if (state.network !== this.#config.network || state.genesisHash !== this.#config.genesisHash || state.faucetEnabled !== false ||
+        state.programId !== this.#config.programId || state.relayer !== this.#config.relayer ||
         state.feePolicy.model !== chain.feePolicy.model || state.feePolicy.basisPoints !== chain.feePolicy.basisPoints || state.feePolicy.baseLamports !== chain.feePolicy.baseLamports) {
       throw new PoolSyncError('The indexer and on-chain pool identity or fee policy disagree.')
     }

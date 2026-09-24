@@ -11,7 +11,7 @@ import bs58 from 'bs58'
 import nacl from 'tweetnacl'
 import { sha256 } from '@noble/hashes/sha256'
 import { ZkPayClient, SubmissionUnknownError, type PendingPayment } from '../../src/client.js'
-import { DEVNET } from '../../src/networks.js'
+import { MAINNET } from '../../src/networks.js'
 import { createUnlockMessage, type WalletSigner } from '../../src/wallet.js'
 import {
   ProtocolAccount, MerkleTree, getProgramAccounts, nullifierPdaFor,
@@ -19,7 +19,7 @@ import {
 } from '../../src/protocol/index.js'
 import { FIELD_SIZE, toBytes } from '../../src/protocol/validation.js'
 
-const config = DEVNET
+const config = MAINNET
 const publicWallet = Keypair.fromSeed(new Uint8Array(32).fill(7))
 const otherPublicWallet = Keypair.fromSeed(new Uint8Array(32).fill(8))
 const recipient = new PublicKey(new Uint8Array(32).fill(19))
@@ -125,18 +125,19 @@ async function fixture(options: { initialBalance?: bigint; timeoutMs?: number } 
     const url = new URL(String(input))
     assert.equal(url.origin, new URL(config.apiUrl).origin)
     const path = url.pathname
-    if (path === '/api/state') return json({
+    if (path === '/api/mainnet/state') return json({
+      network: config.network, genesisHash: config.genesisHash,
       programId: config.programId, relayer: config.relayer, root: tree.root(), leafCount: leaves.length,
       chainLeaves: leaves.length, indexedLeaves: leaves.length, withdrawFeeBps: 20, baseFeeLamports: 6_000_000,
       feeModel: 'gross-percentage-plus-fixed-v1', shutdownAt: null, relayerEnabled: true, faucetEnabled: false,
       rpcUrl: 'https://this-value-is-never-used.invalid',
     })
-    if (path === '/api/leaves') {
+    if (path === '/api/mainnet/leaves') {
       assert(!init?.body, 'No private owned-note filter is sent to the indexer')
       const from = Number(url.searchParams.get('from')), limit = Number(url.searchParams.get('limit'))
       return json({ leaves: leaves.slice(from, from + limit), total: leaves.length })
     }
-    if (path === '/api/relay') {
+    if (path === '/api/mainnet/relay') {
       calls.relay++
       const encoded = String(init?.body)
       assert(!/inPrivateKey|inBlinding|spendSecret|privateWitness/.test(encoded))
@@ -144,13 +145,13 @@ async function fixture(options: { initialBalance?: bigint; timeoutMs?: number } 
       return relayMode === '400' ? json({ error: 'Ambiguous server failure after possible submission' }, 400)
         : json({ signature: bs58.encode(new Uint8Array(64).fill(31)), confirmed: true })
     }
-    if (path === '/api/ingest') { calls.ingest++; return json({ contiguous: leaves.length }) }
+    if (path === '/api/mainnet/ingest') { calls.ingest++; return json({ contiguous: leaves.length }) }
     throw new Error(`Unexpected offline route: ${path}`)
   }
   if (options.initialBalance) {
     const message = createUnlockMessage(publicWallet.publicKey, config, 'app.zkpay.sh')
     const sig = nacl.sign.detached(message, publicWallet.secretKey)
-    const digest = sha256(Buffer.concat([Buffer.from('zkpay/spend/v1'), Buffer.from(sig)]))
+    const digest = sha256(Buffer.concat([Buffer.from('zkpay/spend/mainnet/v1'), Buffer.from(sig)]))
     const secret = new Uint8Array(32); secret.set(digest.subarray(0, 31), 1)
     const fundingAccount = new ProtocolAccount(secret, hasher)
     secret.fill(0); digest.fill(0); sig.fill(0)

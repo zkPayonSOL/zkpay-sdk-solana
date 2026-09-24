@@ -1,6 +1,6 @@
 # Security model
 
-This SDK handles spend-authorizing material. The new SDK itself has not been independently audited. Its type checks, tests, artifact hashes, and local protocol validations do not establish the security of a deployment, RPC provider, host application, or wallet implementation.
+This SDK handles spend-authorizing material for native SOL on Solana Mainnet Beta only. Client creation requires `network: 'mainnet-beta'` explicitly, including for read-only integrations; there is no automatic network default. Submission methods operate in a real-funds context. The new SDK itself has not been independently audited. Its type checks, tests, artifact hashes, and local protocol validations do not establish the security of a deployment, RPC provider, host application, or wallet implementation.
 
 ## Keys, unlock signatures, and origin binding
 
@@ -8,7 +8,7 @@ This SDK handles spend-authorizing material. The new SDK itself has not been ind
 
 The wallet must return a valid, deterministic Ed25519 signature for the same exact unlock message. Signature verification alone does not prove determinism across sessions. Test the chosen wallet's signing behavior before funding it. Adapters without message signing or v0 transaction signing are unsupported; do not assume a hardware-wallet integration meets these requirements.
 
-The signature message depends on the signing host and selected network, and Mainnet's message also binds the configured program. Keep the original host and network when recovering an existing balance. A browser is prevented from requesting an unlock signature for a host other than `location.host`. A third-party site consequently derives a different private account from the official application. Do not bypass this check by asking a user to copy an official application's signature.
+The Mainnet signature message binds the signing host, account, network, and configured program. Keep the original host and account when recovering an existing Mainnet balance. A browser is prevented from requesting an unlock signature for a host other than `location.host`. A third-party site consequently derives a different private account from the official application. Do not bypass this check by asking a user to copy an official application's signature. This SDK does not recover balances from other Solana clusters.
 
 The SDK keeps spending material in memory and does not persist unlock signatures, decrypted notes, or private witnesses. `dispose()` invalidates the client and performs best-effort cleanup. JavaScript cannot guarantee erasure of every copy made by the VM, wallet, application, or injected prover. The `createKeypairWallet` adapter retains its own keypair copy while the adapter is reachable; disposing a client does not erase caller-owned wallets or secrets.
 

@@ -1,17 +1,21 @@
-# Verification record
+# Mainnet verification record
 
 Reviewed September 24, 2026. These are engineering checks, not an independent
 security audit or authorization to risk funds.
 
+Current supported scope is native SOL on Mainnet only. The Mainnet-only revision
+passed the checks below on September 24, 2026. Use CI and command output for
+subsequent run-specific results.
+
 ## Reproducible checks
 
-| Check | Result |
+| Check | Mainnet-only revision result |
 | --- | --- |
-| `npm run check` | Strict TypeScript checks and build passed; 75 offline tests passed. Four opt-in tests are skipped in the default run. |
-| `ZKPAY_TEST_ARTIFACTS=<verified-directory> npm run test:proof` | Two real offline Groth16 tests passed using synthetic accounts and pinned production-compatible artifacts. |
-| `npm run test:live-readonly` | Devnet and Mainnet genesis, supported account layouts, fees, public commitment history, and Merkle roots matched the configured deployments. |
-| `npm run test:package` | Package allowlist, credential-pattern scan, side-effect-free Node import, and browser-bundle smoke passed. |
-| `npm audit --audit-level=moderate` | No known dependency vulnerabilities reported for the resolved dependency tree at the time of this check. |
+| `npm run check` | Strict type checks, build, and 83 offline tests passed; three opt-in tests skipped in the default run. Includes type/runtime rejection of non-Mainnet configuration and raw-transport identity checks. |
+| `ZKPAY_TEST_ARTIFACTS=<verified-directory> npm run test:proof` | Both real offline Groth16 proof tests passed using synthetic accounts and pinned Mainnet-compatible artifacts. |
+| `npm run test:live-readonly` | Mainnet genesis, supported account layouts, fees, public commitment history, and Merkle roots matched the configured deployment. Read requests only. |
+| `npm run test:package` | Package allowlist, credential-pattern scan, Node import, and browser-bundle smoke passed; no exported Devnet configuration. |
+| `npm audit --audit-level=moderate` | No known dependency vulnerabilities reported at check time. This is not an independent code audit. |
 
 The real-proof round trip creates a deposit proof, decrypts the resulting note,
 builds its Merkle membership path, proves a gross withdrawal, and recovers the
@@ -38,7 +42,7 @@ public artifacts and runs the real offline proof tests. CI has no wallet keys.
 
 ## Not established by these checks
 
-- No funded end-to-end transaction was broadcast on either cluster.
+- No funded end-to-end transaction is broadcast by these checks. They do not establish successful live-money execution on Mainnet.
 - The browser check validates bundling/import, not every wallet extension or
   browser/WASM hosting configuration.
 - Tests do not independently audit the deployed program, trusted setup,

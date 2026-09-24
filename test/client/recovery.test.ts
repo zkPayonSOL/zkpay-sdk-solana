@@ -6,7 +6,7 @@ import { hmac } from '@noble/hashes/hmac'
 import { sha256 } from '@noble/hashes/sha256'
 import bs58 from 'bs58'
 import { ZkPayClient, type PaymentIntent, type PendingPayment } from '../../src/client.js'
-import { DEVNET } from '../../src/networks.js'
+import { MAINNET } from '../../src/networks.js'
 import { createKeypairWallet, deriveSpendingSecret } from '../../src/wallet.js'
 import { FIELD_SIZE, MerkleTree, type PoseidonHasher } from '../../src/protocol/index.js'
 
@@ -18,7 +18,7 @@ const be32 = (value: string) => Buffer.from(BigInt(value).toString(16).padStart(
 async function fixture(options: { walletSeed?: number; unlocked?: boolean } = {}) {
   // A fixed public test seed; no wallet files, live RPC or live API calls.
   const wallet = createKeypairWallet(Keypair.fromSeed(new Uint8Array(32).fill(options.walletSeed ?? 23)))
-  const spendSecret = await deriveSpendingSecret(wallet, DEVNET, 'app.zkpay.sh')
+  const spendSecret = await deriveSpendingSecret(wallet, MAINNET, 'app.zkpay.sh')
   const authenticationKey = sha256(Buffer.concat([Buffer.from('zkpay/sdk/payment-intent-key/v1'), Buffer.from(spendSecret)]))
   spendSecret.fill(0)
   const authenticate = (input: Omit<PaymentIntent, 'authentication'>): PaymentIntent => {
@@ -29,7 +29,7 @@ async function fixture(options: { walletSeed?: number; unlocked?: boolean } = {}
     }
     return { ...body, authentication: Buffer.from(hmac(sha256, authenticationKey, Buffer.from(JSON.stringify(body)))).toString('hex') }
   }
-  const program = new PublicKey(DEVNET.programId)
+  const program = new PublicKey(MAINNET.programId)
   const bump = (seed: string) => PublicKey.findProgramAddressSync([Buffer.from(seed)], program)[1]
   const root = new MerkleTree(hasher).root()
   const tree = Buffer.alloc(4136)
@@ -43,26 +43,26 @@ async function fixture(options: { walletSeed?: number; unlocked?: boolean } = {}
   global.fill(7, 8, 40); global.writeUInt16LE(20, 42); global[46] = bump('global_config')
   const info = (data: Buffer): AccountInfo<Buffer> => ({ data, owner: program, executable: false, lamports: 1, rentEpoch: 0 })
   const connection = {
-    getGenesisHash: async () => DEVNET.genesisHash,
+    getGenesisHash: async () => MAINNET.genesisHash,
     getMultipleAccountsInfo: async (keys: PublicKey[]) => keys.length === 3 ? [info(tree), info(global), null] : keys.map(() => null),
     getSignatureStatuses: async () => ({ context: { slot: 100 }, value: [{ slot: 99, confirmations: null, confirmationStatus: 'finalized', err: { InstructionError: [0, 'Custom'] } }] }),
   } as unknown as Connection
   const fetcher: typeof fetch = async request => {
-    assert.ok(String(request).endsWith('/state'), 'recovery should only need the empty-pool state endpoint')
+    assert.equal(String(request), `${MAINNET.apiUrl}/state`, 'recovery should only need the Mainnet empty-pool state endpoint')
     return new Response(JSON.stringify({
-      network: DEVNET.network, genesisHash: DEVNET.genesisHash, programId: DEVNET.programId, relayer: DEVNET.relayer,
+      network: MAINNET.network, genesisHash: MAINNET.genesisHash, programId: MAINNET.programId, relayer: MAINNET.relayer,
       root, leafCount: 0, chainLeaves: 0, indexedLeaves: 0, feeModel: 'gross-percentage-plus-fixed-v1',
-      withdrawFeeBps: 20, baseFeeLamports: 6_000_000, shutdownAt: null, rpcUrl: '/api/rpc', relayerEnabled: true, faucetEnabled: false,
+      withdrawFeeBps: 20, baseFeeLamports: 6_000_000, shutdownAt: null, rpcUrl: '/api/mainnet/rpc', relayerEnabled: true, faucetEnabled: false,
     }), { headers: { 'content-type': 'application/json' } })
   }
   const client = await ZkPayClient.create({
-    network: 'devnet', wallet, connection, fetch: fetcher, hasher,
+    network: 'mainnet-beta', wallet, connection, fetch: fetcher, hasher,
     prover: { async prove() { throw new Error('recovery must not invoke the prover') } },
   })
   if (options.unlocked !== false) await client.unlock()
   const intent = authenticate({
-    id: 'a'.repeat(32), kind: 'deposit', network: 'devnet', programId: DEVNET.programId,
-    root, grossLamports: '10000000', feeLamports: '0', recipient: DEVNET.relayer,
+    id: 'a'.repeat(32), kind: 'deposit', network: 'mainnet-beta', programId: MAINNET.programId,
+    root, grossLamports: '10000000', feeLamports: '0', recipient: MAINNET.relayer,
     inputNullifiers: ['101', '102'], outputCommitments: ['201', '202'],
   })
   const payment: PendingPayment = { status: 'submitted', intent, signature: publicSignature }
@@ -95,7 +95,7 @@ test('restored intents require canonical bounded metadata, consistent kind/fee a
     { kind: 'withdrawal', feeLamports: '10000000' },
     { root: FIELD_SIZE.toString() }, { root: '01' },
     { inputNullifiers: ['101', '101'] }, { outputCommitments: ['201'] },
-    { network: 'mainnet-beta' }, { programId: DEVNET.relayer }, { recipient: 'invalid' },
+    { network: 'devnet' }, { programId: '79EUG9jBTvcLenrTTYaHBzX6dqM9osaUXhLs3hVf4vBk' }, { recipient: 'invalid' },
     { id: 'a'.repeat(31) }, { authentication: 'A'.repeat(64) }, { authentication: 'a'.repeat(63) },
     { authentication: undefined },
   ]
@@ -115,7 +115,7 @@ test('a matching random id cannot replace an unresolved payment even with a vali
   for (const body of [
     { ...payment.intent, root: '123' },
     { ...payment.intent, grossLamports: '11000000' },
-    { ...payment.intent, recipient: DEVNET.programId },
+    { ...payment.intent, recipient: MAINNET.programId },
     { ...payment.intent, inputNullifiers: ['301', '302'] },
     { ...payment.intent, outputCommitments: ['401', '402'] },
   ]) {

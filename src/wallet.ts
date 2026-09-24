@@ -32,12 +32,7 @@ export function createUnlockMessage(publicKey: PublicKey, config: NetworkConfig,
   assertNetworkConfig(config)
   checkHost(host)
   const address = publicKey.toBase58()
-  return utf8ToBytes(config.network === 'devnet'
-    ? `${host} wants you to sign in with your Solana account:\n${address}\n\n` +
-      'Signing derives your private zkPay key. It authorizes no transaction and costs nothing.\n\n' +
-      `Only ever sign this on ${host}. Another site asking for the same message is trying ` +
-      'to reach your shielded balance.'
-    : `zkPay private spend key\n\nOrigin: ${host}\nAccount: ${address}\n` +
+  return utf8ToBytes(`zkPay private spend key\n\nOrigin: ${host}\nAccount: ${address}\n` +
       `Network: Solana Mainnet Beta\nProgram: ${config.programId}\n\n` +
       'Signing derives your private zkPay key. It authorizes no transaction and costs nothing.\n' +
       `Only sign this on ${host}. Never share this signature or your private key.`)
@@ -56,7 +51,7 @@ export async function deriveSpendingSecret(wallet: WalletSigner, config: Network
     throw new Error('Wallet returned an invalid unlock signature or changed accounts.')
   }
   const signature = returned.slice()
-  const tag = utf8ToBytes(config.network === 'devnet' ? 'zkpay/spend/v1' : 'zkpay/spend/mainnet/v1')
+  const tag = utf8ToBytes('zkpay/spend/mainnet/v1')
   const digest = sha256(concatBytes(tag, signature))
   const secret = new Uint8Array(32)
   secret.set(digest.subarray(0, 31), 1)

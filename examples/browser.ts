@@ -1,10 +1,10 @@
 import { ZkPayClient } from '../src/client.js';
-import type { Network } from '../src/networks.js';
 import type { WalletSigner } from '../src/wallet.js';
 import { createDefaultHasher, createProver, type LightWasmHasher } from '../src/proving/index.js';
 
 export interface BrowserExampleOptions {
-  network: Network;
+  /** Required explicit acknowledgement of the native SOL Mainnet context. */
+  network: 'mainnet-beta';
   wallet: WalletSigner;
   /** Your controlled proxy/self-hosted API; official third-party CORS must not be assumed. */
   apiUrl: string;

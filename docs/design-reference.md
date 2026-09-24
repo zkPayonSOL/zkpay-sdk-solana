@@ -1,4 +1,4 @@
-# Solana SDK design reference
+# Mainnet Solana SDK design reference
 
 Reviewed September 24, 2026. This is an architectural comparison, not a security
 audit, endorsement, or claim of protocol interchangeability.
@@ -18,12 +18,15 @@ Its API covers deposits, withdrawals and private-balance queries.
 
 ## zkPay decisions
 
+The zkPay SDK targets native SOL on Mainnet only. The reference project's broader
+capabilities do not extend this SDK's supported scope.
+
 | Concern | Decision |
 | --- | --- |
-| Public API | Explicit network, wallet and transport; a high-level client plus typed building blocks. |
+| Public API | Mandatory `network: 'mainnet-beta'`, wallet and transport; a high-level client plus typed building blocks. No network default or other-cluster integration. |
 | Amounts | `bigint` lamports and strict decimal parsing; never floating-point SOL. |
 | Fees | Gross amount is the total debit; validate the deployed percentage-plus-fixed model and show recipient net in the quote. |
-| Wallet identity | Match zkPay's exact existing signing messages and derivation. A different signing host derives a different balance. |
+| Wallet identity | Match zkPay's exact existing Mainnet signing message and derivation. A different signing host derives a different balance. |
 | Protocol | zkPay's own commitments, note encryption, PDA seeds, instruction encoding and current proving parameters. |
 | Randomness | Fail-closed cryptographic randomness; no `Math.random` for keys or blindings. |
 | Scanning | Fetch public leaves, decrypt locally, verify commitments/root and check spent markers on chain. Do not send owned-note lists to an indexer. |
