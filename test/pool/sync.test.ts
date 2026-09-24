@@ -161,6 +161,8 @@ test('cache namespaces isolate network, pool and genesis; only public whiteliste
   assert.deepEqual(Object.keys(writes[0]!).sort(), ['leaves', 'namespace', 'version'])
   assert.deepEqual(Object.keys(writes[0]!.leaves[0]!).sort(), ['commitment', 'encryptedOutput', 'index'])
   assert.notEqual(poolStorageNamespace(DEVNET), poolStorageNamespace(MAINNET))
+  assert.notEqual(poolStorageNamespace(DEVNET), poolStorageNamespace({ ...DEVNET, apiUrl: 'https://another-indexer.example/api' }))
+  assert.equal(poolStorageNamespace(DEVNET), poolStorageNamespace({ ...DEVNET, rpcUrl: 'https://rpc.example/?private-key=not-a-real-key' }))
 })
 
 test('nullifier checks use 100-account chunks and derive total versus two-input spendable balance', async () => {

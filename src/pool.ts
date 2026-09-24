@@ -58,7 +58,8 @@ export interface PoolSynchronizerOptions {
 }
 
 export function poolStorageNamespace(config: NetworkConfig): string {
-  return `zkpay.solana.pool.v1:${config.network}:${config.genesisHash}:${config.programId}`
+  // Never include the RPC URL: it may contain a private provider API key.
+  return `zkpay.solana.pool.v1:${config.network}:${config.genesisHash}:${config.programId}:${encodeURIComponent(config.apiUrl)}`
 }
 function checkedInteger(value: number, max: number, name: string): number {
   if (!Number.isSafeInteger(value) || value < 1 || value > max) throw new RangeError(`Invalid ${name}.`)

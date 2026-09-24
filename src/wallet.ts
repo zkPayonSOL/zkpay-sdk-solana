@@ -83,7 +83,8 @@ export async function signExactTransaction(wallet: WalletSigner, transaction: Ve
     throw new Error('Wallet changed the prepared transaction or returned an invalid signature.')
   }
   if (signed.serialize().length > 1232) throw new Error('Signed transaction exceeds the Solana packet limit.')
-  return signed
+  // Do not retain an object still owned by the wallet adapter across later awaits.
+  return VersionedTransaction.deserialize(signed.serialize())
 }
 
 /** In-memory Node/programmatic adapter. The SDK never loads a key from disk. */
