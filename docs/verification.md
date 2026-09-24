@@ -3,19 +3,24 @@
 Reviewed September 24, 2026. These are engineering checks, not an independent
 security audit or authorization to risk funds.
 
-Current supported scope is native SOL on Mainnet only. The Mainnet-only revision
-passed the checks below on September 24, 2026. Use CI and command output for
-subsequent run-specific results.
+Current supported scope is native SOL on Mainnet only, with a mandatory
+caller-provided RPC URL or Connection. This record lists reproducible checks
+for that scope. Use CI and command output for current run-specific results.
+
+For the required-RPC revision, strict type checking/build, 88 offline tests,
+package/import checks, and dependency auditing passed locally. Three opt-in
+checks remain skipped in the default test run. The live read-only check also
+passed with an explicitly selected public Mainnet RPC; no transaction was sent.
 
 ## Reproducible checks
 
-| Check | Mainnet-only revision result |
+| Check | Current verification scope |
 | --- | --- |
-| `npm run check` | Strict type checks, build, and 83 offline tests passed; three opt-in tests skipped in the default run. Includes type/runtime rejection of non-Mainnet configuration and raw-transport identity checks. |
-| `ZKPAY_TEST_ARTIFACTS=<verified-directory> npm run test:proof` | Both real offline Groth16 proof tests passed using synthetic accounts and pinned Mainnet-compatible artifacts. |
-| `npm run test:live-readonly` | Mainnet genesis, supported account layouts, fees, public commitment history, and Merkle roots matched the configured deployment. Read requests only. |
-| `npm run test:package` | Package allowlist, credential-pattern scan, Node import, and browser-bundle smoke passed; no exported Devnet configuration. |
-| `npm audit --audit-level=moderate` | No known dependency vulnerabilities reported at check time. This is not an independent code audit. |
+| `npm run check` | Strict type checks, build, offline tests, rejection of unsupported networks, and mandatory/exclusive caller RPC selection. Opt-in checks remain skipped without their explicit configuration. |
+| `ZKPAY_TEST_ARTIFACTS=<verified-directory> npm run test:proof` | Real offline proof and roundtrip verification using synthetic accounts and pinned Mainnet-compatible artifacts. |
+| `ZKPAY_TEST_RPC_URL=<your-mainnet-rpc> npm run test:live-readonly` | Mainnet genesis, supported account layouts, fees, public commitment history, and Merkle roots checked using the caller-selected RPC. Read requests only; no default proxy or fallback. |
+| `npm run test:package` | Package allowlist, credential-pattern scan, Node import, and browser-bundle smoke; no unsupported network or default RPC export. |
+| `npm audit --audit-level=moderate` | Dependency advisory check for the resolved tree at run time. This is not an independent code audit. |
 
 The real-proof round trip creates a deposit proof, decrypts the resulting note,
 builds its Merkle membership path, proves a gross withdrawal, and recovers the
@@ -31,6 +36,11 @@ cross-wallet authentication, and immutable tracking metadata.
 Live checks allow only public state/leaf GET requests and the read-only RPC
 methods `getGenesisHash` and `getMultipleAccounts`. They neither load wallet
 files nor call `relay`, `ingest`, or `sendTransaction`.
+
+The live check requires `ZKPAY_TEST_RPC_URL` when explicitly enabled. The SDK and
+live check require the caller's own RPC selection; neither silently falls back
+to the web application's proxy. Removing the SDK default does not modify the
+deployed proxy or web application.
 
 ## CI
 

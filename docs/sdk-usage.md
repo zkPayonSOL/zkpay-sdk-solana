@@ -34,10 +34,11 @@ import type { WalletSigner } from './dist/index.js';
 // Node: obtain an in-memory Keypair from your application's established secret manager.
 // const wallet = createKeypairWallet(keypair);
 
-export async function openClient(wallet: WalletSigner) {
+export async function openClient(wallet: WalletSigner, rpcUrl: string) {
   const client = await ZkPayClient.create({
     network: 'mainnet-beta', // Required: native SOL in a real-funds context.
     wallet,
+    rpcUrl, // Required caller choice; a free public or private Mainnet RPC is allowed.
     signingHost: 'app.zkpay.sh', // Node only: preserve the original deposit's signing host.
     storage: new MemoryPoolStorage(), // Optional, public pool data only.
   });
@@ -60,11 +61,35 @@ Message signing must be deterministic. The SDK checks signatures and transaction
 
 `network` is mandatory and its only supported value is `'mainnet-beta'`. It is not inferred or defaulted: every caller must explicitly acknowledge the Mainnet context, even for reads. The SDK checks the configured RPC's Mainnet genesis hash and rejects other clusters. These are the constants pinned in this release:
 
-| Network | Program | Default API prefix | Default RPC |
-| --- | --- | --- | --- |
-| `mainnet-beta` | `98Bj9K8iPV1JiVqBWXzY4bX4wsrm2x5DgEbiToybm9hx` | `https://app.zkpay.sh/api/mainnet` | `https://app.zkpay.sh/api/mainnet/rpc` |
+| Network | Program | Default indexer/relayer API prefix |
+| --- | --- | --- |
+| `mainnet-beta` | `98Bj9K8iPV1JiVqBWXzY4bX4wsrm2x5DgEbiToybm9hx` | `https://app.zkpay.sh/api/mainnet` |
 
-These constants identify supported deployments; they are not a promise of endpoint availability or a deployment audit. You may override `apiUrl`, `rpcUrl`, or inject a `Connection`, but cannot silently change the program/relayer identity through an API response. Use HTTPS; HTTP API/RPC endpoints are accepted only for explicit localhost development. Embedded URL credentials are rejected. An RPC query-string API token, if used, must not be logged.
+These constants identify the supported deployment; they are not a promise of endpoint availability or a deployment audit. `MAINNET` contains no default RPC. Every `ZkPayClient.create` call must provide exactly one of these options:
+
+```ts
+type RpcChoice =
+  | { rpcUrl: string; connection?: never }
+  | { connection: Connection; rpcUrl?: never };
+```
+
+Both missing and both supplied are rejected by the public types and runtime checks. Your application's existing connection can be injected without separately passing a URL:
+
+```ts
+import { Connection } from '@solana/web3.js';
+import { ZkPayClient } from './dist/index.js';
+import type { WalletSigner } from './dist/index.js';
+
+export function clientUsingConnection(wallet: WalletSigner, connection: Connection) {
+  return ZkPayClient.create({ network: 'mainnet-beta', wallet, connection });
+}
+```
+
+A caller may explicitly choose the free public Mainnet RPC `https://api.mainnet.solana.com`, which is listed in [Solana's official RPC documentation](https://solana.com/docs/references/clusters#mainnet). Public RPCs are shared, rate-limited, and may reject traffic; this SDK supplies no availability SLA. Use a service appropriate for your traffic and privacy needs. There is no automatic switch to a public endpoint, zkPay proxy, or another provider if your chosen RPC fails.
+
+The `apiUrl` option is independent: it selects zkPay-compatible indexer and relayer HTTP services and retains the official prefix above as its default. Your required RPC handles genesis/account reads, nullifier checks, signature status, and deposit submission. Supplying a custom RPC does not remove the indexer/relayer dependency, and an API-advertised RPC cannot replace it. At the low level, `NetworkConfig.rpcUrl` is optional metadata for a caller-supplied URL; its absence never requests a fallback.
+
+You may override `apiUrl` and choose your RPC, but cannot silently change the pinned program/relayer identity through an API response. With `rpcUrl`, the SDK constructs the Solana `Connection`; an injected `connection` uses that instance's own transport configuration. Configure its fetch implementation and underlying transport in your application rather than expecting the SDK to replace them. Use HTTPS; HTTP API/RPC endpoints are accepted only for explicit localhost development. Embedded URL credentials are rejected. An RPC query-string API token, if used, must not be logged.
 
 The Mainnet unlock message binds the signing host, account, network, and program. Node defaults the signing host to `app.zkpay.sh`; it does not default the network option. Browsers use `location.host` and reject a different `signingHost`. A balance created at one host will not appear when unlocking for another host. Preserve that original context when recovering Mainnet funds. Other-cluster balances are outside this SDK's scope.
 
@@ -192,7 +217,8 @@ const prover = createProver({
     verifyingKey: await readFile('.artifacts/verifyingkey2.json'),
   },
 });
-const client = await ZkPayClient.create({ network: 'mainnet-beta', wallet, prover });
+// wallet and rpcUrl are explicitly supplied by the application.
+const client = await ZkPayClient.create({ network: 'mainnet-beta', wallet, rpcUrl, prover });
 ```
 
 The same verified bytes are passed to `snarkjs`; there is no second URL fetch between verification and proving. `createProver` validates supplied bytes at construction. It uses the documented `fullProve` witness/prover single-thread options to avoid lingering worker threads, then checks proof shape, coordinate ranges, and all seven public signals against the witness. It does not implement a custom pairing verifier. The program verifies proofs on chain, and the opt-in real-proof test independently verifies with native `snarkjs` in a child process.
@@ -213,10 +239,10 @@ ZKPAY_TEST_ARTIFACTS=.artifacts npm run test:proof
 For an explicit network read check:
 
 ```sh
-npm run test:live-readonly
+ZKPAY_TEST_RPC_URL=https://api.mainnet.solana.com npm run test:live-readonly
 ```
 
-This contacts the configured Mainnet public endpoints only. It uses an unfunded synthetic identity and a request guard that permits only allowlisted RPC reads and public state/leaf endpoints. It checks cluster identity, deployed account layouts, and bounded Merkle synchronization; it does not unlock a real wallet, broadcast, or transfer funds. Endpoint failures, indexer lag, or smoke-test resource limits can cause a failure without implying a protocol defect. These checks are implementation validation, not an independent audit.
+The command explicitly chooses the displayed public RPC; substitute your own Mainnet RPC URL if preferred. `ZKPAY_TEST_RPC_URL` is required for this opt-in check, and there is no fallback. The command contacts that RPC and the zkPay indexer only. It uses an unfunded synthetic identity and a request guard that permits only allowlisted RPC reads and public state/leaf endpoints. It checks cluster identity, deployed account layouts, and bounded Merkle synchronization; it does not unlock a real wallet, broadcast, or transfer funds. Endpoint failures, indexer lag, or smoke-test resource limits can cause a failure without implying a protocol defect. These checks are implementation validation, not an independent audit.
 
 ## Browser integration
 
@@ -240,7 +266,7 @@ export async function createBrowserClient(
 
 For `@lightprotocol/hasher.rs`, the application can use its `WasmFactory.loadHasher({ wasm: wasmBytes })` loader with bytes imported or served by the bundler. Return that initialized instance from `initializeWasm`, or pass it to `createPoseidonHasher(instance)`. Serve the three pinned transaction artifacts under the configured artifact directory. Do not assume dependency WASM files appear automatically in a browser's public directory. Do not import the Node `fs` offline-loading example into a browser bundle.
 
-The official API restricts browser CORS for third-party origins. A third-party application should supply a controlled backend proxy or compatible self-hosted API via `apiUrl`; use a browser-accessible trusted RPC via `rpcUrl`. CORS restrictions also apply to artifact hosting unless the files are same-origin or explicitly permit access. A proxy never needs the unlock signature or private witness.
+The official indexer/relayer API restricts browser CORS for third-party origins. A third-party application should supply a controlled backend proxy or compatible self-hosted API via `apiUrl`. Independently, supply a browser-accessible trusted RPC through the required `rpcUrl` or `connection` choice; the API proxy is not an RPC default. CORS restrictions also apply to artifact hosting unless the files are same-origin or explicitly permit access. A proxy never needs the unlock signature or private witness.
 
 Leave `signingHost` unspecified in the browser so it resolves to `location.host`. A third-party origin represents a different private account from `app.zkpay.sh`; this is part of the signing domain boundary, not a balance-discovery bug.
 

@@ -8,6 +8,7 @@ export interface BrowserExampleOptions {
   wallet: WalletSigner;
   /** Your controlled proxy/self-hosted API; official third-party CORS must not be assumed. */
   apiUrl: string;
+  /** Required caller-selected Mainnet RPC, including a public/free endpoint if deliberately chosen. */
   rpcUrl: string;
   /** Serve the exact pinned WASM, zkey, and vkey with same-origin access or suitable CORS. */
   artifactBaseUrl: string | URL;

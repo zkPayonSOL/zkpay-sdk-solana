@@ -27,6 +27,8 @@ try {
   assert.equal(typeof sdk.createProver, 'function')
   assert.equal('DEVNET' in sdk, false)
   assert.equal(sdk.getNetworkConfig('mainnet-beta').network, 'mainnet-beta')
+  assert.equal(Object.hasOwn(sdk.MAINNET, 'rpcUrl'), false)
+  assert.equal(Object.hasOwn(sdk.getNetworkConfig('mainnet-beta'), 'rpcUrl'), false)
   assert.throws(() => sdk.getNetworkConfig('devnet'), /Mainnet only/)
 } finally { globalThis.fetch = originalFetch }
 
@@ -44,5 +46,6 @@ runInContext(result.outputFiles[0].text, sandbox, { timeout: 10_000 })
 assert.equal(runInContext('ZkPaySDK.parseSol("0.1")', sandbox), 100_000_000n)
 assert.equal(runInContext('typeof ZkPaySDK.ZkPayClient.create', sandbox), 'function')
 assert.equal(runInContext('"DEVNET" in ZkPaySDK', sandbox), false)
+assert.equal(runInContext('Object.hasOwn(ZkPaySDK.MAINNET, "rpcUrl")', sandbox), false)
 assert.throws(() => runInContext('ZkPaySDK.getNetworkConfig("devnet")', sandbox), /Mainnet only/)
 console.log(`Package allowlist, credential scan, Node import, and browser bundle smoke passed (${packed.files.length} files).`)

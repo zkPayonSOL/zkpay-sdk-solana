@@ -7,13 +7,16 @@ import assert from 'node:assert/strict'
 import { test } from 'node:test'
 import { Connection } from '@solana/web3.js'
 import { sha256 } from '@noble/hashes/sha256'
-import { MAINNET } from '../../src/networks.js'
+import { MAINNET, validateEndpoint } from '../../src/networks.js'
 import { HttpApi } from '../../src/transport.js'
 import { PoolSynchronizer } from '../../src/pool.js'
 import { ProtocolAccount, type PoseidonHasher } from '../../src/protocol/index.js'
 import { createDefaultHasher } from '../../src/proving/hasher.js'
 
 const enabled = process.env.ZKPAY_LIVE_READONLY === '1'
+const configuredRpc = process.env.ZKPAY_TEST_RPC_URL
+if (enabled && !configuredRpc) throw new Error('Set ZKPAY_TEST_RPC_URL explicitly before enabling the live read-only test.')
+const rpcUrl = enabled ? validateEndpoint(configuredRpc!, 'rpc') : undefined
 let hasherPromise: Promise<PoseidonHasher> | undefined
 
 const config = MAINNET
@@ -21,6 +24,7 @@ test(`live readonly ${config.network}: genesis, deployed layouts, Merkle prefix 
   skip: !enabled,
   timeout: 60_000,
 }, async context => {
+  if (!rpcUrl) throw new Error('Set ZKPAY_TEST_RPC_URL to your chosen Mainnet RPC before enabling the live read-only test.')
   const rpcCounts = new Map<string, number>()
   let httpReads = 0
   let phase = 'local hasher initialization'
@@ -34,7 +38,7 @@ test(`live readonly ${config.network}: genesis, deployed layouts, Merkle prefix 
   const readOnlyFetch: typeof globalThis.fetch = async (input, init) => {
     const url = new URL(typeof input === 'string' ? input : input instanceof URL ? input.href : input.url)
     const method = (init?.method ?? 'GET').toUpperCase()
-    if (url.href === new URL(config.rpcUrl).href) {
+    if (url.href === new URL(rpcUrl).href) {
       assert.equal(method, 'POST', 'JSON-RPC reads use POST')
       assert.equal(typeof init?.body, 'string', 'RPC requests must be transparent JSON')
       const body = JSON.parse(init?.body as string) as { method?: unknown }
@@ -52,7 +56,7 @@ test(`live readonly ${config.network}: genesis, deployed layouts, Merkle prefix 
     if (init?.signal) signals.push(init.signal)
     return globalThis.fetch(input, { ...init, redirect: 'error', signal: AbortSignal.any(signals) })
   }
-  const connection = new Connection(config.rpcUrl, { commitment: 'confirmed', disableRetryOnRateLimit: true, fetch: readOnlyFetch })
+  const connection = new Connection(rpcUrl, { commitment: 'confirmed', disableRetryOnRateLimit: true, fetch: readOnlyFetch })
   const api = new HttpApi(config, { fetch: readOnlyFetch, timeoutMs: 15_000 })
   try {
     phase = 'RPC genesis'
@@ -75,9 +79,10 @@ test(`live readonly ${config.network}: genesis, deployed layouts, Merkle prefix 
     assert.equal(snapshot.spendableLamports, 0n)
     assert.equal(snapshot.notes.length, 0)
     context.diagnostic(`${config.network}: verified ${snapshot.state.leafCount} leaves, ${snapshot.state.recentRoots.length} populated root-history entries, zero fixture notes; HTTP reads=${httpReads}, RPC reads=${JSON.stringify(Object.fromEntries(rpcCounts))}`)
-  } catch (error) {
-    const detail = error instanceof Error ? error.message.slice(0, 300) : 'Unknown read failure'
-    context.diagnostic(`${config.network}: stopped during ${phase}; ${detail}; no write request was made`)
-    throw error
+  } catch {
+    // A caller-owned paid RPC URL may carry a key. Never print upstream errors,
+    // nested causes, or echoed JSON-RPC data in this test's diagnostics.
+    context.diagnostic(`${config.network}: stopped during ${phase}; no write request was made`)
+    throw new Error('Mainnet read-only verification failed. Check your RPC availability and indexer synchronization; provider details were redacted.')
   } finally { account.dispose() }
 })

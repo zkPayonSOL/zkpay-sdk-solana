@@ -9,7 +9,8 @@ export interface NetworkConfig {
   readonly walletChain: 'solana:mainnet'
   /** Complete HTTP API prefix, without a trailing slash. */
   readonly apiUrl: string
-  readonly rpcUrl: string
+  /** Optional user-supplied metadata; the SDK never provides a default RPC. */
+  readonly rpcUrl?: string
 }
 
 export const MAINNET: NetworkConfig = Object.freeze({
@@ -19,7 +20,6 @@ export const MAINNET: NetworkConfig = Object.freeze({
   genesisHash: '5eykt4UsFv8P8NJdTREpY1vzqKqZKvdpKuc147dw2N9d',
   walletChain: 'solana:mainnet',
   apiUrl: 'https://app.zkpay.sh/api/mainnet',
-  rpcUrl: 'https://app.zkpay.sh/api/mainnet/rpc',
 })
 
 export function validateEndpoint(value: string, kind: 'api' | 'rpc'): string {
@@ -39,7 +39,7 @@ export function getNetworkConfig(network: Network, overrides: { apiUrl?: string;
   return Object.freeze({
     ...MAINNET,
     apiUrl: validateEndpoint(overrides.apiUrl ?? MAINNET.apiUrl, 'api'),
-    rpcUrl: validateEndpoint(overrides.rpcUrl ?? MAINNET.rpcUrl, 'rpc'),
+    ...(overrides.rpcUrl !== undefined ? { rpcUrl: validateEndpoint(overrides.rpcUrl, 'rpc') } : {}),
   })
 }
 
@@ -49,7 +49,7 @@ export function assertNetworkConfig(config: NetworkConfig): void {
     if (config[field] !== MAINNET[field]) throw new TypeError('Network configuration does not identify the supported Mainnet zkPay pool.')
   }
   validateEndpoint(config.apiUrl, 'api')
-  validateEndpoint(config.rpcUrl, 'rpc')
+  if (config.rpcUrl !== undefined) validateEndpoint(config.rpcUrl, 'rpc')
 }
 
 export async function verifyRpcNetwork(connection: { getGenesisHash(): Promise<string> }, config: NetworkConfig): Promise<void> {

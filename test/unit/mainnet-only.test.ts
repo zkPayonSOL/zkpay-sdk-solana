@@ -17,6 +17,7 @@ test('the public SDK rejects every non-Mainnet selection at both type and runtim
   for (const network of ['devnet', 'testnet', 'localnet', 'mainnet', '', undefined]) {
     assert.throws(() => getNetworkConfig(network as Network), /Mainnet only/)
     await assert.rejects(ZkPayClient.create({ network: network as Network, wallet: signer,
+      rpcUrl: 'https://rpc.example/',
       hasher: () => { throw new Error('Must reject before initializing protocol state') },
     }), /Mainnet only/)
   }

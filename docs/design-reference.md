@@ -24,6 +24,7 @@ capabilities do not extend this SDK's supported scope.
 | Concern | Decision |
 | --- | --- |
 | Public API | Mandatory `network: 'mainnet-beta'`, wallet and transport; a high-level client plus typed building blocks. No network default or other-cluster integration. |
+| RPC ownership | Exactly one caller-provided RPC URL or Connection. Explicit free public RPCs are allowed; there is no default proxy or automatic fallback. Indexer/relayer HTTP APIs are separate. |
 | Amounts | `bigint` lamports and strict decimal parsing; never floating-point SOL. |
 | Fees | Gross amount is the total debit; validate the deployed percentage-plus-fixed model and show recipient net in the quote. |
 | Wallet identity | Match zkPay's exact existing Mainnet signing message and derivation. A different signing host derives a different balance. |

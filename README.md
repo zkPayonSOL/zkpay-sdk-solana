@@ -1,6 +1,6 @@
 # zkPay Solana SDK
 
-TypeScript client for zkPay's native SOL privacy pool on Solana Mainnet Beta only. It supports wallet-based unlock, local note scanning and Groth16 proving, unsigned deposit preparation, relayed withdrawals, and payment-status recovery. Every client requires the explicit `network: 'mainnet-beta'` option; there is no default network.
+TypeScript client for zkPay's native SOL privacy pool on Solana Mainnet Beta only. It supports wallet-based unlock, local note scanning and Groth16 proving, unsigned deposit preparation, relayed withdrawals, and payment-status recovery. Every client requires the explicit `network: 'mainnet-beta'` option and exactly one caller-provided `rpcUrl` or `connection`. There is no default network, RPC, or automatic RPC fallback.
 
 This repository is a source distribution under development. `package.json` currently sets `private: true` and `license: "UNLICENSED"`; publication and licensing remain owner decisions. These instructions do not assume a published npm package. This SDK has not been independently audited.
 
@@ -39,8 +39,8 @@ Your application supplies a `WalletSigner` with `publicKey`, `signMessage`, and 
 import { ZkPayClient, formatSol } from './dist/index.js';
 import type { WalletSigner } from './dist/index.js';
 
-export async function readBalance(wallet: WalletSigner) {
-  const client = await ZkPayClient.create({ network: 'mainnet-beta', wallet });
+export async function readBalance(wallet: WalletSigner, rpcUrl: string) {
+  const client = await ZkPayClient.create({ network: 'mainnet-beta', wallet, rpcUrl });
   try {
     await client.unlock(); // Requests a sensitive, deterministic message signature.
     const balance = await client.getPrivateBalance();
@@ -55,6 +55,10 @@ export async function readBalance(wallet: WalletSigner) {
 ```
 
 This function reads Mainnet state and requests an unlock signature; it never submits a transaction. The mandatory `network: 'mainnet-beta'` option makes the real-funds context explicit. Preserve the signing host used for the original deposits: another host derives another private account. In a browser, the host must match the current page.
+
+Choose your RPC explicitly. A free public option listed by Solana is `https://api.mainnet.solana.com`; it is shared and rate-limited, and public-service limits or access can change. This SDK provides no availability SLA or automatic fallback. See [Solana's public RPC documentation](https://solana.com/docs/references/clusters#mainnet). Alternatively, pass your existing `Connection` as `connection` and omit `rpcUrl`. Passing both or neither is rejected.
+
+Your RPC handles chain reads, transaction-status checks, and deposit broadcast. zkPay's separately configured `apiUrl` still provides indexed public leaves and relayed withdrawals; choosing your own RPC does not replace those indexer/relayer services.
 
 `verified: true` on a balance means the commitment tree and relevant RPC account checks passed. It does **not** prove that the indexer supplied every authentic encrypted note. A malicious indexer can hide or alter ciphertext and cause a balance to be underreported. Owned-nullifier lookups also expose their association to the selected RPC provider. Read the [security model](SECURITY.md) before integrating.
 
@@ -81,7 +85,13 @@ ZKPAY_TEST_ARTIFACTS=.artifacts npm run test:proof
 
 The download writes ignored `.artifacts/` files only after all expected sizes and SHA-256 hashes pass. The proof tests use synthetic data for a real proof and a deposit → scan → withdrawal → change roundtrip, including native proof verification and rejection of altered public signals. They do not access a wallet or move funds. Normal tests skip these cases unless `ZKPAY_TEST_ARTIFACTS` is supplied.
 
-`npm run test:package` checks the package file allowlist, credential patterns, Node import behavior, and a browser bundle without broadcasting. `npm run test:live-readonly` explicitly contacts the configured Mainnet public endpoints to check genesis, account layouts, and commitment synchronization; its request guard permits only reads and it uses an unfunded synthetic identity. It never submits a transaction or transfers funds. Live checks may fail when endpoints are unavailable or the indexer lags; they are not an independent security audit.
+`npm run test:package` checks the package file allowlist, credential patterns, Node import behavior, and a browser bundle without broadcasting. An explicit live read check requires your chosen RPC, for example:
+
+```sh
+ZKPAY_TEST_RPC_URL=https://api.mainnet.solana.com npm run test:live-readonly
+```
+
+This command deliberately selects that public endpoint; there is no SDK or test fallback if it fails. It contacts your selected Mainnet RPC and the zkPay indexer to check genesis, account layouts, and commitment synchronization. Its request guard permits only reads and it uses an unfunded synthetic identity. It never submits a transaction or transfers funds. Live checks may fail when endpoints are unavailable or the indexer lags; they are not an independent security audit.
 
 Browser integrations must initialize the Poseidon WASM hasher explicitly. Third-party browser origins cannot assume the official API permits their CORS requests: provide a backend proxy or a compatible self-hosted API and configure `apiUrl`. See [browser setup and artifact handling](docs/sdk-usage.md#browser-integration).
 

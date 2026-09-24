@@ -4,7 +4,9 @@ Target repository: `zkPayonSOL/zkpay-sdk-solana`.
 Commit author: `zkPayonSOL <zkPayonSOL@users.noreply.github.com>`.
 
 Current scope: native SOL on Solana Mainnet Beta only, with mandatory explicit
-`network: 'mainnet-beta'` and no automatic network default. Version 0.1.0 remains
+`network: 'mainnet-beta'`, exactly one caller-provided RPC URL or Connection,
+and no automatic network/RPC default or fallback. Free public RPCs may be chosen
+explicitly; zkPay's indexer/relayer API remains separate. Version 0.1.0 remains
 unreleased; this scope change does not publish npm or modify any deployment.
 
 1. Research the current Privacy Cash Solana SDK and record design/provenance

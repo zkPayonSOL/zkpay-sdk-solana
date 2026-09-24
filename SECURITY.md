@@ -14,6 +14,10 @@ The SDK keeps spending material in memory and does not persist unlock signatures
 
 ## Indexer and RPC trust
 
+Every client must receive exactly one caller-controlled `rpcUrl` or `Connection`; both omitted or both supplied is an error. The SDK has no built-in RPC proxy, default public RPC, or automatic failover. A free public Mainnet endpoint is allowed when explicitly selected, but shared services can throttle or block requests; the SDK supplies no availability SLA. See [Solana's public RPC limits](https://solana.com/docs/references/clusters#mainnet-rate-limits).
+
+No RPC provider credentials are embedded in the SDK. Caller-supplied RPC URLs may contain credentials: do not log them or bundle private server credentials into a browser application. Use a controlled server-side proxy when credentials must remain private. zkPay's indexer/relayer API remains a separate dependency and must not silently choose the caller's RPC.
+
 The synchronizer rebuilds a Merkle tree from contiguous public commitments, checks it against the selected RPC's pool state, validates supported account layouts and policy, and queries nullifier accounts to exclude spent notes. A network mismatch, incomplete commitment list, inconsistent root, or unavailable spent-state check fails closed.
 
 `PrivateBalance.verified === true` has a narrower meaning than a complete, trustless account balance:

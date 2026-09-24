@@ -8,7 +8,7 @@ import { hmac } from '@noble/hashes/hmac'
 import { concatBytes, utf8ToBytes } from '@noble/hashes/utils'
 import { assertLamports } from './amounts.js'
 import { quoteWithdrawal, type FeePolicy, type WithdrawalQuote } from './fees.js'
-import { getNetworkConfig, verifyRpcNetwork, type Network, type NetworkConfig } from './networks.js'
+import { getNetworkConfig, validateEndpoint, verifyRpcNetwork, type Network, type NetworkConfig } from './networks.js'
 import {
   ProtocolAccount, buildTransactIx, getProgramAccounts, nullifierPdaFor,
   type BuiltTransaction, type PoseidonHasher, type ProofProvider,
@@ -20,13 +20,10 @@ import type { PublicPoolStorage } from './storage.js'
 import { deriveSpendingSecret, resolveSigningHost, signExactTransaction, type WalletSigner } from './wallet.js'
 
 export interface CallOptions { signal?: AbortSignal }
-export interface ClientOptions {
+export interface ClientBaseOptions {
   network: Network
   wallet: WalletSigner
   apiUrl?: string
-  rpcUrl?: string
-  /** The selected RPC sees queried nullifier PDAs. Use an endpoint you trust. */
-  connection?: Connection
   fetch?: typeof globalThis.fetch
   storage?: PublicPoolStorage
   /** Trusted local implementation: a prover receives the private witness. */
@@ -34,6 +31,24 @@ export interface ClientOptions {
   hasher?: PoseidonHasher
   signingHost?: string
   timeoutMs?: number
+}
+
+/** Supply exactly one caller-owned Mainnet RPC transport; there is no fallback. */
+export type ClientOptions = ClientBaseOptions & (
+  | { rpcUrl: string; connection?: never }
+  | { connection: Connection; rpcUrl?: never }
+)
+
+function assertRpcSelection(options: ClientOptions): void {
+  const hasUrl = options.rpcUrl !== undefined
+  const hasConnection = options.connection !== undefined
+  if (hasUrl === hasConnection) throw new TypeError('Provide exactly one Mainnet rpcUrl or Connection. The SDK has no default RPC.')
+  if (hasUrl) {
+    if (typeof options.rpcUrl !== 'string' || options.rpcUrl.trim().length === 0) throw new TypeError('A nonempty Mainnet rpcUrl is required.')
+    validateEndpoint(options.rpcUrl, 'rpc')
+  } else if (!options.connection || typeof options.connection.getGenesisHash !== 'function') {
+    throw new TypeError('Provide a configured Solana Connection for Mainnet.')
+  }
 }
 
 export interface PrivateBalance {
@@ -168,7 +183,7 @@ export class ZkPayClient {
       ...(options.fetch ? { fetch: options.fetch } : {}), signal: this.#lifetime.signal,
     })
     const fetcher = options.fetch ?? globalThis.fetch
-    this.#connection = options.connection ?? new Connection(this.config.rpcUrl, {
+    this.#connection = options.connection ?? new Connection(options.rpcUrl!, {
       commitment: 'confirmed',
       disableRetryOnRateLimit: true,
       fetch: (input, init) => fetcher(input, { ...init, credentials: 'omit', redirect: 'error',
@@ -191,6 +206,7 @@ export class ZkPayClient {
     if (!options.wallet?.publicKey || typeof options.wallet.signMessage !== 'function' || typeof options.wallet.signTransaction !== 'function') {
       throw new TypeError('A wallet with message signing and v0 transaction signing is required.')
     }
+    assertRpcSelection(options)
     const hasher = options.hasher ?? await createDefaultHasher()
     return new ZkPayClient(options, hasher)
   }
